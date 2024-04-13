@@ -1,0 +1,562 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta 
+        name="viewport" 
+        content="initial-scale=1,maximum-scale=1,user-scalable=no" 
+    />
+    <title>Intro to MapView - Create a 2D map | Sample | ArcGIS Maps SDK for JavaScript 4.29</title>
+    <style>
+        html,
+        /*页面设计*/
+        body{
+          padding: 0;
+          margin: 0;
+          height: 100%;
+          width: 100%;
+        }
+        /*地图区域*/
+        #viewDiv {
+          padding: 0;
+          margin: 0;
+          height: 94%;
+          width: 75%;
+        }
+        /*页眉*/
+        #info{
+          z-index: 99;
+          position: (fixed,top);
+          top: 15px;
+          left: 0;
+          right: 0;
+          text-align: center;
+          padding: 5px 5px 0px 0px;
+          margin-left: auto;
+          margin-right: auto;
+          width: 100%;
+          height: 8.5%;
+          background: rgb(153, 195, 211);
+          font-size: 22pt;
+        }
+        /*地图库*/
+        #gallery-node {
+          float: left;
+          width: 25%;
+          height: 94%;
+          padding: 1em;
+          overflow: scroll;
+          max-height: 100%;
+          border-width: 2px;
+          border-color: #323232;
+          border-style: solid;
+        }
+       
+        
+    </style>
+
+    <link 
+        rel="stylesheet" 
+        href="https://js.arcgis.com/4.15/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.15/"></script>
+
+    <script>
+      require(["esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer","esri/widgets/LayerList","esri/widgets/Legend",
+         "esri/widgets/ScaleBar","esri/widgets/Search","esri/widgets/Home","esri/widgets/Compass","esri/widgets/BasemapToggle",
+	       "esri/widgets/BasemapGallery","esri/widgets/Expand","esri/views/draw/Draw","esri/Graphic","esri/geometry/Polyline",
+         "esri/geometry/Polygon","esri/geometry/Point","esri/tasks/QueryTask","esri/tasks/support/Query", "esri/widgets/Sketch"], 
+        function(Map, MapView,FeatureLayer,LayerList,Legend,ScaleBar,Search,Home,Compass,BasemapToggle,BasemapGallery,Expand,
+          Draw,Graphic,Polyline, Polygon,Point,QueryTask,Query,Sketch){
+            
+        //新建地图
+        var map1 = new Map({
+            basemap: "streets-night-vector"
+          //basemap类型："topo"、"dark-gray"、"gray"、"hybrid"、"oceans"、"streets"……
+        });
+        //将地图加入view中，设置初始中心、地图级别
+        var view = new MapView({
+            container: "viewDiv",
+            map: map1,
+            zoom: 3,
+            center: [105, 37.5] // longitude, latitude
+        });
+       
+        // 创建弹出窗口模板
+        const tankuang={
+          "title":"{全称}", // 标题使用要素的 NAME 属性
+          "content":"<p>根据国家林业和草原局发布的《2024年松材线虫病疫区公告》，<b>{NAME}</b>有<b>{疫区num}</b>个松材线虫病疫区。</p>"
+        };
+
+        // 创建要素图层
+        var flayer1 = new FeatureLayer({
+          url: "https://www.geosceneonline.cn/server/rest/services/Hosted/省级行政区hff/FeatureServer",
+          title: "省级行政区图层",
+          outfield: ["疫区num"],
+          popupTemplate: tankuang // 设置弹出窗口模板
+        }); 
+
+        const tankuang2 ={
+          "title": "点", // 标题使用要素的 NAME 属性
+          "content": "<b>疫区名称：{地址}</b><br><b>经度：{经度}%</b><br><b>纬度：{纬度}%</b><br>"
+        };
+
+        // 创建要素图层
+        var flayer = new FeatureLayer({
+          url: "https://www.geosceneonline.cn/server/rest/services/Hosted/松材线虫病疫区/FeatureServer",
+          title: "松材线虫疫区分布图层",
+          outfields: ["地址","经度","纬度"],
+          popupTemplate: tankuang2 // 设置弹出窗口模板
+        }); 
+
+        //加入地图
+        //单个图层加入  
+        //map1.layers.add(flayer1);
+        //多个图层加入 
+        map1.addMany([flayer1,flayer]);
+
+        //图层列表控件
+        const layerList = new LayerList({
+          view: view,
+
+        });
+        //view.ui.add(layerList,"top-right");
+
+        //图例控件
+        const legend = new Legend({
+          view: view,
+          //style: "card"
+        });
+        //view.ui.add(legend, { position: "top-right"});
+
+        //比例尺控件
+        const scaleBar = new ScaleBar({
+          view: view,
+          style:"ruler",
+          unit: 'metric'
+        });
+        view.ui.add(scaleBar,"bottom-right");
+
+        //搜索控件
+        const searchWidget=new Search({
+          view: view
+        });
+        view.ui.add(searchWidget,{
+          position: "top-left",
+          index: 0 
+        });
+
+        //初始位置控件
+        const homeWidget=new Home({
+          view:view
+        });
+        view.ui.add(homeWidget,"top-left");
+
+        //指北针控件
+        const compass = new Compass({
+          view:view
+        });
+        view.ui.add(compass,"top-left");
+            
+        //切换底图控件
+        var toggle = new BasemapToggle({
+          view:view,
+          nextBasemap:"osm"
+        });
+        //view.ui.add(toggle,"top-left");
+
+        //底图库控件
+        var gallery = new BasemapGallery({
+          view:view,
+          container: "gallery-node"
+        });
+        //view.ui.add(gallery,"bottom-left");
+        view.when().then(async ()=> {
+          const osmBaseLayer = view.map.basemap.baseLayers.getItemAt(0);
+          osmBaseLayer.effect = "grayscale(100%)";
+        });
+
+        //添加expand实现点击打开控件内容
+        let expand = new Expand({
+          expandIconClass: "esri-icon-layers",
+          view: view,
+          content: layerList,
+          group: "top-right"
+        });
+        view.ui.add(expand, "top-right");
+            
+        let expand2 = new Expand({
+            view: view,
+            content: legend,
+            group: "top-right"
+        });
+        view.ui.add(expand2, "top-right");
+
+/*
+        view.on("click", function (event) {
+        const clickPoint = event.mapPoint;
+        const bufferRadius = 100000;
+        const bufferGeometry = geometryEngine.geodesicBuffer(clickPoint, bufferRadius, "meters");
+
+        const bufferSymbol = {
+          type: "simple-fill",
+          color: [227, 139, 79, 0.5],
+          outline: {
+            color: [255, 255, 255],
+            width: 1
+          }
+        };
+
+        const bufferGraphic = new Graphic({
+          geometry: bufferGeometry,
+          symbol: bufferSymbol
+        });
+
+        view.graphics.add(bufferGraphic);
+
+        const queryTask = new QueryTask({
+          url: "https://www.geosceneonline.cn/server/rest/services/Hosted/松材线虫病疫区/FeatureServer"
+        });
+
+        const query = new Query();
+        query.geometry = bufferGeometry;
+        query.spatialRelationship = "intersects";
+
+        queryTask.execute(query).then(function (result) {
+          const numberOfCases = result.features.length;
+          document.getElementById("resultTextbox").value = "缓冲区内的疫区数量为：" + numberOfCases;
+        }).catch(function (error) {
+          console.error("查询错误：", error);
+        });
+      });*/
+     
+      /*var sketch = new Sketch({
+        view: view,
+        container: document.createElement("div"),
+        layer: new GraphicsLayer(),
+        availableCreateTools: ["point", "polyline", "polygon", "circle", "rectangle"],
+        creationMode: "single"
+      });
+      view.ui.add(sketch, "top-right");
+      document.getElementById("buffer-button").addEventListener("click", function() {
+        var graphic = sketch.createGraphics();
+        if (graphic.geometry) {
+          var bufferGeometry = geometryEngine.geodesicBuffer(graphic.geometry, 100000, "meters");
+          var bufferGraphic = new Graphic({
+            geometry: bufferGeometry,
+            symbol: {
+              type: "simple-fill",
+              color: [51, 51, 204, 0.5],
+              outline: {
+                color: "blue",
+                width: 2
+              }
+            }
+          });
+          view.graphics.add(bufferGraphic);
+        }
+      });*/
+
+
+      view.ui.add("point-button", "top-left");//添加绘制面按钮，自定义UI
+      view.ui.add("line-button", "top-left");//添加绘制线按钮，自定义UI
+      view.ui.add("area-button", "top-left");//添加绘制面按钮，自定义UI
+      
+      //view.ui.add("buffer-button", "top-left");//添加绘制面按钮，自定义UI
+
+        view.when(function () {
+            var draw = new Draw({
+                view: view
+            });
+            //绑定线按钮绘制事件
+            var drawLineButton = document.getElementById("line-button");
+            drawLineButton.onclick = function() {
+                //view.graphics.removeAll();//清楚之前的绘制
+                enableCreateLine(draw, view);
+            };
+            //绑定面按钮绘制事件
+            var drawAreaButton = document.getElementById("area-button");
+            drawAreaButton.onclick = function() {
+                //view.graphics.removeAll();//清楚之前的绘制
+                enableCreateArea(draw, view);
+            };
+            //绑定面按钮绘制事件
+            var drawPointButton = document.getElementById("point-button");
+            drawPointButton.onclick = function() {
+                enableCreatePoint(draw, view);
+            };
+            //绑定面按钮绘制事件
+            var drawCircleButton = document.getElementById("circle-button");
+            drawCircleButton.onclick = function() {
+                enableCreateCircle(draw, view);
+            };
+            //绑定面按钮绘制事件
+            var drawRectangleButton = document.getElementById("rectangle-button");
+            drawRectangleButton.onclick = function() {
+                enableCreateRectangle(draw, view);
+            };
+        });
+        //开始监听画线
+        function enableCreateLine(draw, view) {
+            var action = draw.create("polyline", {
+                mode: "click"
+            });
+            // 获取焦点
+            view.focus();
+            // 顶点添加事件
+            action.on("vertex-add", createPolyline);
+            //顶点移除事件
+            action.on("vertex-remove", createPolyline);
+            // 鼠标移动事件
+            action.on("cursor-update", createPolyline);
+            // 绘制完成事件
+            action.on("draw-complete", createPolyline);
+ 
+ 
+        }
+        //开始监听画面
+        function enableCreateArea(draw, view) {
+            var action = draw.create("polygon", {
+                mode: "click"//点击方式加点
+            });
+            // 获取焦点
+            view.focus();
+            // 顶点添加事件
+            action.on("vertex-add", createPolygon);
+ 
+            //顶点移除事件
+            action.on("vertex-remove", createPolygon);
+            // 鼠标移动事件
+            action.on("cursor-update", createPolygon);
+            // 绘制完成事件
+            action.on("draw-complete", createPolygon);
+ 
+ 
+        }
+        //开始监听画点
+        function enableCreatePoint(draw, view) {
+            var action = draw.create("point", {
+                mode: "click"//点击方式加点
+            });
+            // 获取焦点
+            view.focus();
+ 
+            // vertex-add 顶点添加事件 vertex-remove 顶点移除事件 draw-complete 绘制完成事件
+            action.on(['vertex-add', 'vertex-remove', 'draw-complete'], createPoint)
+        }
+        //开始监听画圆
+        function enableCreateCircle(draw, view) {
+            var action = draw.create("circle", {
+                mode: "click"//点击方式加点
+            });
+            // 获取焦点
+            view.focus();
+            //顶点移除事件
+            action.on("vertex-remove", createCircle);
+            // 鼠标移动事件
+            action.on("cursor-update", createCircle);
+            // 绘制完成事件
+            action.on("draw-complete", createCircle);
+        }
+        //开始监听画矩形
+        function enableCreateRectangle(draw, view) {
+            var action = draw.create("rectangle", {
+                mode: "click"//点击方式加点
+            });
+            // 获取焦点
+            view.focus();
+ 
+            //顶点移除事件
+            action.on("vertex-remove", createRectangle);
+            // 鼠标移动事件
+            action.on("cursor-update", createRectangle);
+            // 绘制完成事件
+            action.on("draw-complete", createRectangle);
+ 
+        }
+        //根据点坐标生成新的线
+        function createPolyline(event) {
+            //获取所有顶点
+            var vertices = event.vertices;
+            //清除之前绘制
+            //view.graphics.removeAll();
+            // 生成绘制的图形
+            var graphic = new Graphic({
+                geometry: new Polyline({
+                    paths: vertices,
+                    spatialReference: view.spatialReference
+                }),
+                symbol: {
+                    type: "simple-line", 
+                    color: [173,216,230],
+                    width: 4,
+                    cap: "round",
+                    join: "round"
+                }
+            });
+           // 将绘制的图形添加到view
+            view.graphics.add(graphic);
+        };
+        //根据点坐标生成新的线
+        function createPolygon(event) {
+            //获取所有顶点
+            var vertices = event.vertices;
+            //清除之前绘制
+            //view.graphics.removeAll();
+ 
+            // 生成绘制的图形
+            var graphic = new Graphic({
+                geometry: new Polygon({
+                    hasZ: false,
+                    hasM: false,
+                    rings: [vertices],
+                    spatialReference: view.spatialReference
+                }),
+                symbol: {
+                    type: "simple-fill",  
+                    color: [ 51,51, 204, 0.9 ],
+                    style: "solid",
+                    outline: {  
+                        color: "pink",
+                        width: 1
+                    }
+                }
+            });
+            // 将绘制的图形添加到view
+            view.graphics.add(graphic);
+        }
+ 
+        //根据点坐标生成新的点
+        function createPoint(event) {
+            //获取所有顶点
+            var coordinates = event.coordinates;
+ 
+            //生成绘制的图形
+            var graphic = new Graphic({
+                geometry: new Point({
+                    hasZ: false,
+                    hasM: false,
+                    x:coordinates[0],
+                    y:coordinates[1],
+                    spatialReference: view.spatialReference
+                }),
+                symbol: {
+                    type: "simple-marker",  
+                    style: "square",
+                    color: "blue",
+                    size: "8px",  
+                    outline: {  
+                        color: [ 81, 128, 143 ],
+                        width: 3  // points
+                    }
+                }
+            });
+            // 将绘制的图形添加到view
+            view.graphics.add(graphic);
+        }
+        //根据点坐标生成新的线
+        function createCircle(event) {
+            //获取所有顶点
+            var vertices = event.vertices;
+            //少于一个点无法展示圆
+            if(vertices.length<2){
+                return
+            }
+            //清除之前绘制
+            //view.graphics.removeAll();
+            //生成绘制的图形,两点画圆
+            var center=new Point({
+                hasZ: false,
+                hasM: false,
+                x:vertices[0][0],
+                y:vertices[0][1],
+                spatialReference: view.spatialReference
+            });
+            var dis=center.distance(new Point({
+                hasZ: false,
+                hasM: false,
+                x:vertices[1][0],
+                y:vertices[1][1],
+                spatialReference: view.spatialReference
+            }));
+            var graphic = new Graphic({
+                geometry: new Circle({
+                    hasZ: false,
+                    hasM: false,
+                    center:center,
+                    radius:dis,
+                    spatialReference: view.spatialReference
+                }),
+                symbol: {
+                    type: "simple-fill",  
+                    color: [ 51,51, 204, 0.9 ],
+                    style: "solid",
+                    outline: {  
+                        color: "white",
+                        width: 1
+                    }
+                }
+            });
+            // 将绘制的图形添加到view
+            view.graphics.add(graphic);
+        }
+        function createRectangle(event) {
+            //获取所有顶点
+            var vertices = event.vertices;
+ 
+            //两点画矩形
+            if(vertices.length<2){
+                return
+            }
+            var rings=[vertices[0],[vertices[0][0],vertices[1][1]],vertices[1],[vertices[1][0],vertices[0][1]]];
+            //清除之前绘制
+            //view.graphics.removeAll();
+ 
+            // 生成绘制的图形
+            var graphic = new Graphic({
+                geometry: new Polygon({
+                    hasZ: false,
+                    hasM: false,
+                    rings: [rings],
+                    spatialReference: view.spatialReference
+                }),
+                symbol: {
+                    type: "simple-fill", 
+                    color: [ 51,51, 204, 0.9 ],
+                    style: "solid",
+                    outline: { 
+                        color: "white",
+                        width: 1
+                    }
+                }
+            });
+            // 将绘制的图形添加到view
+            view.graphics.add(graphic);
+        }
+        
+        
+        
+
+    });
+        
+    </script>
+    
+  </head>
+
+
+  <body>
+    <div id="info" class="esri-widget">全国松材线虫病疫区分布情况</div>
+    <div id="gallery-node" class="esri-widget"></div>
+    <div id="viewDiv"></div>
+    <div id="basemapGalleryDiv"></div>
+    <div><button id="buffer-button" class="esri-widget esri-widget--button esri-interactive" title="缓冲区查询">缓冲区查询</button></div>
+    <div id="divShowResult"></div>
+    <div id="line-button" class="esri-widget esri-widget--button esri-interactive" title="画线">
+      <span class="esri-icon-polyline"></span>
+    </div>
+    <div id="area-button" class="esri-widget esri-widget--button esri-interactive" title="画面">
+      <span class="esri-icon-polygon"></span>
+    </div>
+    <div id="point-button" class="esri-widget esri-widget--button esri-interactive" title="画点">
+      <span class="esri-icon-radio-checked"></span>
+    </div>
+  </body>
+</html>
